@@ -1,4 +1,12 @@
 #include "socket.h"
+#include <netdb.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <ifaddrs.h>
+#define _POSIX_C_SOURCE 200809L
 
 static void initClientsSocket() {
     for (int i = 0; i < MAX_CLIENT_SOCKET; i++)   
@@ -50,9 +58,54 @@ static void addNewSocketToArray(int new_socket) {
     }   
 }
 
-void displayMyIP() {
-        
+void displayMyPort() {
+    static int myPort = 0;
+    if(0 == myPort) {
+        int addrlen = sizeof(address);
+        getpeername(master_socket , (struct sockaddr*)&address , (socklen_t*)&addrlen);
+        myPort = ntohs(address.sin_port);   
+    }
+    printf("My Port = %d\n", myPort);
 }
+
+void displayMyIP() {
+    struct ifaddrs *ifaddr, *ifa;
+    int family, s;
+    char host[20];
+
+    if (getifaddrs(&ifaddr) == -1) {
+        perror("getifaddrs");
+        exit(EXIT_FAILURE);
+    }
+
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == NULL) {
+            continue;
+        }
+
+        family = ifa->ifa_addr->sa_family;
+
+        if (family == AF_INET) {
+            s = getnameinfo(ifa->ifa_addr,
+                            sizeof(struct sockaddr_in),
+                            host, NI_MAXHOST,
+                            NULL, 0, NI_NUMERICHOST);
+            if (s != 0) {
+                printf("getnameinfo() failed: %s\n", gai_strerror(s));
+                exit(EXIT_FAILURE);
+            }
+            if (strcmp(host, "127.0.0.1") != 0) {
+                printf("Interface: %s\tAddress family: %s\tAddress: %s\n",
+                        ifa->ifa_name,
+                        (family == AF_INET) ? "AF_INET" : "AF_INET6",
+                        host);
+            }
+        }
+    }
+
+    freeifaddrs(ifaddr);
+}
+
 
 void connectToNewSocket(char* ipaddress, int portNumber) {
     int client_fd;

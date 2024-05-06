@@ -24,6 +24,7 @@ static struct sockaddr_in address;
 static fd_set readfds;
 
 void displayMyIP();
+void displayMyPort();
 void *socketHandler(void *_port);
 void connectToNewSocket(char* ipaddress, int port);
 

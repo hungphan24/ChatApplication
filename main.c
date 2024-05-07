@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include<signal.h>
 
 #define     MAX_LENGTH_COMMAND  20
 #define     MAX_LENGTH_MESSAGE  20
@@ -10,12 +11,19 @@
 void parseInput(int argc, char const* argv[], int *port) {
     if(argc < 2) {
         printf("Port number is empty. Please add port number\n");
+        exit(1);
     } else {
         *port = atoi(argv[1]);
     }
 }
 
+void sigintHandler(int sig) {
+    terminateSocket(-1);
+}
+
 int main(int argc , char const* argv[]) {
+    int shouldExit = 1;
+    signal(SIGINT, sigintHandler);
     pthread_t thread_id1;
     char command[MAX_LENGTH_COMMAND];
     int port;
@@ -23,7 +31,7 @@ int main(int argc , char const* argv[]) {
     displayMenu();
 
     pthread_create(&thread_id1, NULL, socketHandler, (void*) &port);
-    while(1){
+    while(shouldExit){
         fgets(command, sizeof(command), stdin);
         command[strcspn(command, "\n")] = '\0';
 
@@ -40,7 +48,7 @@ int main(int argc , char const* argv[]) {
         } else if (strcmp(token, "myport") == 0) {
             displayMyPort();
         } else if (strcmp(token, "list") == 0) {
-                /* code */
+            listConnection();
         } else if (strcmp(token, "terminate") == 0) {
             int connectionId;
             token = strtok(NULL, " ");
@@ -49,7 +57,7 @@ int main(int argc , char const* argv[]) {
                 continue;
             }
             connectionId = atoi(token);
-            printf("connection id = %d\n", connectionId);
+            terminateSocket(connectionId);
             
         } else if (strncmp(token, "connect", 7) == 0) {
             char ip[16];
@@ -71,7 +79,7 @@ int main(int argc , char const* argv[]) {
             port1 = atoi(token);
             printf("IP: %s, Port: %d\n", ip, port1);
 
-                //handleConnect(ip, port);
+            connectToNewSocket(ip, port1);
         } else if (strncmp(token, "send", 7) == 0) {
             int connectionId;
             token = strtok(NULL, " ");
@@ -88,7 +96,10 @@ int main(int argc , char const* argv[]) {
             }
             strncpy(message, token, sizeof(message));
             message[sizeof(message) - 1] = '\0';
-            printf("%d %s\n", connectionId, message);
+            // printf("%d %s\n", connectionId, message);
+            sendMessage(connectionId, message);
+        } else if (strcmp(token, "exit") == 0) {
+            shouldExit = 0;
         } else {
             printf("Invalid command4\n");
         }

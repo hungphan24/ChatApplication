@@ -27,6 +27,8 @@ void displayMyIP();
 void displayMyPort();
 void *socketHandler(void *_port);
 void connectToNewSocket(char* ipaddress, int port);
-
+void terminateSocket(int connectionId);
+void sendMessage(int connectionId, char message[]);
+void listConnection();
 
 #endif  // SOCKET_H

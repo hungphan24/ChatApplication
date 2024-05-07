@@ -129,6 +129,7 @@ void connectToNewSocket(char* ipaddress, int portNumber) {
         exit(EXIT_FAILURE);
     }
     addNewSocketToArray(client_fd);
+    printf("\nConnect successfully\n");
 }
 
 void *socketHandler(void *_port) {
@@ -204,4 +205,30 @@ void *socketHandler(void *_port) {
     }
 }
 
+void terminateSocket(int connectionId) {
+    if(connectionId == -1) {
+        close(master_socket);
+        return;
+    }
+    if (client_socket[connectionId] != 0) {
+        int sd = client_socket[connectionId];
+        close(sd);
+        client_socket[connectionId] = 0;
+        printf("terminate success fully connectionId = %d\n", connectionId);
+    } else {
+        printf("invalid connection Id\n");
+    }
+}
 
+void sendMessage(int connectionId, char message[]) {
+    send(connectionId, message, strlen(message), 0);
+}
+
+void listConnection() {
+    printf("\nID\n");
+    for (int i = 0; i < MAX_CLIENT_SOCKET; i++) {
+        if(client_socket[i] != 0) {
+            printf("%d     App%d\n", i, i);
+        }
+    }
+}

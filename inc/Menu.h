@@ -12,6 +12,7 @@ void displayMenu() {
     printf("4. list\n");
     printf("5. terminate <connection id>\n");
     printf("6. send <connection id> <message>\n");
+    printf("7. exit\n");
     printf("----------------------------------------------------------------------------\n");
 }
 

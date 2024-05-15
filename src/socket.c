@@ -221,7 +221,7 @@ void terminateSocket(int connectionId) {
 }
 
 void sendMessage(int connectionId, char message[]) {
-    send(connectionId, message, strlen(message), 0);
+    send(client_socket[connectionId], message, strlen(message), 0);
 }
 
 void listConnection() {

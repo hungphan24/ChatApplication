@@ -105,6 +105,7 @@ int main(int argc, char const* argv[]) {
             char message[MAX_LENGTH_MESSAGE];
             strncpy(message, token, sizeof(message));
             message[sizeof(message) - 1] = '\0';
+            printf("cid = %d, mes = %s\n", connectionId, message);
             sendMessage(connectionId, message);
         } else if (strcmp(token, "exit") == 0) {
             shouldExit = 0;

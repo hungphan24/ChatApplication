@@ -226,7 +226,8 @@ void *socketHandler(void *_port) {
 
             printf("New connection , socket fd is %d , ip is : %s , port : %d \n" , new_socket , inet_ntoa(address.sin_addr) , ntohs 
                   (address.sin_port));
-            //add new socket to array of sockets  
+            //add new socket to array of sockets
+            setNonBlocking(new_socket);
             addClientSocketToArray(new_socket);
         }
 

@@ -58,13 +58,15 @@ static void createMasterSocket() {
         perror("bind failed");   
         exit(EXIT_FAILURE);   
     }   
-    printf("App running on port %d \n", port); 
+    printf("App running on port %d \n", port);
+    printf("checkcheck1\n");
     //try to specify maximum of 3 pending connections for the master socket  
     if (listen(master_socket, 3) < 0)   
     {   
         perror("listen");   
         exit(EXIT_FAILURE);   
-    }   
+    }
+    printf("checkcheck2\n");  
 }
 
 static void addClientSocketToArray(int new_socket) {
@@ -167,6 +169,9 @@ void *socketHandler(void *_port) {
     int addrlen , new_socket , activity, valread , sd;   
     int max_sd;
     char buffer[MAX_BUFFER_SIZE + 1];
+    struct timeval timeout;
+    timeout.tv_sec = 1; // Timeout sau 1 giây
+    timeout.tv_usec = 0;
 
     initClientsSocket();
     port = *((int*)_port);
@@ -188,7 +193,6 @@ void *socketHandler(void *_port) {
         for (int i = 0; i < MAX_CLIENT_SOCKET; i++) {
             sd = server_socket[i];
             if (sd > 0) {
-                printf("hunghung %d\n", sd);
                 FD_SET(sd, &readfds);
             }
             if (sd > max_sd) {
@@ -203,7 +207,6 @@ void *socketHandler(void *_port) {
                  
             //if valid socket descriptor then add to read list  
             if(sd > 0)
-                // printf("hunghung1 %d\n", sd);
                 FD_SET( sd , &readfds);   
                  
             //highest file descriptor number, need it for the select function  
@@ -211,8 +214,8 @@ void *socketHandler(void *_port) {
                 max_sd = sd;   
         }
  
-        activity = select( max_sd + 1 , &readfds , NULL , NULL , NULL);   
-       
+        activity = select( max_sd + 1 , &readfds , NULL , NULL , &timeout);
+
         if ((activity < 0) && (errno != EINTR)) {   
             printf("select error");   
         }
@@ -234,10 +237,8 @@ void *socketHandler(void *_port) {
         // Handle communication from connected servers
         for (int i = 0; i < MAX_CLIENT_SOCKET; i++) {
             sd = server_socket[i];
-            printf("hungduc %d\n", sd);
 
             if (FD_ISSET(sd, &readfds)) {
-                printf("hungphan\n");
                 if ((valread = read(sd, buffer, MAX_BUFFER_SIZE)) == 0) {
                     // Server disconnected
                     getpeername(sd , (struct sockaddr*)&address , (socklen_t*)&addrlen); 
@@ -254,7 +255,6 @@ void *socketHandler(void *_port) {
 
         for (int i = 0; i < MAX_CLIENT_SOCKET; i++) {
             sd = client_socket[i];
-            printf("hungduc11 %d\n", sd);
             if (FD_ISSET( sd , &readfds)) {
                 getpeername(sd , (struct sockaddr*)&address , (socklen_t*)&addrlen); 
                 if((valread = read( sd , buffer, MAX_BUFFER_SIZE)) == 0) {  

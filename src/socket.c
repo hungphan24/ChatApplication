@@ -7,11 +7,30 @@
 #include <sys/socket.h>
 #include <ifaddrs.h>
 #define _POSIX_C_SOURCE 200809L
+#include <fcntl.h>
+
+void setNonBlocking(int socket) {
+    int flags = fcntl(socket, F_GETFL, 0);
+    if (flags == -1) {
+        perror("fcntl F_GETFL");
+        exit(EXIT_FAILURE);
+    }
+    if (fcntl(socket, F_SETFL, flags | O_NONBLOCK) == -1) {
+        perror("fcntl F_SETFL");
+        exit(EXIT_FAILURE);
+    }
+}
+
 
 static void initClientsSocket() {
     for (int i = 0; i < MAX_CLIENT_SOCKET; i++)   
     {   
         client_socket[i] = 0;   
+    }
+
+    for (int i = 0; i < MAX_CLIENT_SOCKET; i++)   
+    {   
+        server_socket[i] = 0;   
     }  
 }
 
@@ -39,20 +58,32 @@ static void createMasterSocket() {
         perror("bind failed");   
         exit(EXIT_FAILURE);   
     }   
-    printf("App running on port %d \n", port); 
+    printf("App running on port %d \n", port);
+    printf("checkcheck1\n");
     //try to specify maximum of 3 pending connections for the master socket  
     if (listen(master_socket, 3) < 0)   
     {   
         perror("listen");   
         exit(EXIT_FAILURE);   
-    }   
+    }
+    printf("checkcheck2\n");  
 }
 
-static void addNewSocketToArray(int new_socket) {
+static void addClientSocketToArray(int new_socket) {
     for (int i = 0; i < MAX_CLIENT_SOCKET; i++) {   
         //if position is empty  
         if( client_socket[i] == 0 ) {   
             client_socket[i] = new_socket;  
+            break;   
+        }   
+    }   
+}
+
+static void addServerSocketToArray(int new_socket) {
+    for (int i = 0; i < MAX_CLIENT_SOCKET; i++) {   
+        //if position is empty  
+        if( server_socket[i] == 0 ) {   
+            server_socket[i] = new_socket;  
             break;   
         }   
     }   
@@ -108,10 +139,10 @@ void displayMyIP() {
 
 
 void connectToNewSocket(char* ipaddress, int portNumber) {
-    int client_fd;
+    int server_fd;
     int status;
     struct sockaddr_in serv_addr;
-    if ((client_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         printf("\n Socket creation error \n");
         exit(EXIT_FAILURE);
     }
@@ -123,12 +154,13 @@ void connectToNewSocket(char* ipaddress, int portNumber) {
         exit(EXIT_FAILURE);
     }
 
-    if ((status = connect(client_fd, (struct sockaddr*)&serv_addr,
+    if ((status = connect(server_fd, (struct sockaddr*)&serv_addr,
                    sizeof(serv_addr))) < 0) {
         printf("\nConnection Failed \n");
         exit(EXIT_FAILURE);
     }
-    addNewSocketToArray(client_fd);
+    setNonBlocking(server_fd);
+    addServerSocketToArray(server_fd);
     printf("\nConnect successfully\n");
 }
 
@@ -137,10 +169,14 @@ void *socketHandler(void *_port) {
     int addrlen , new_socket , activity, valread , sd;   
     int max_sd;
     char buffer[MAX_BUFFER_SIZE + 1];
+    struct timeval timeout;
+    timeout.tv_sec = 1; // Timeout sau 1 giây
+    timeout.tv_usec = 0;
 
     initClientsSocket();
     port = *((int*)_port);
     createMasterSocket();
+    setNonBlocking(master_socket);
     
          
     //accept the incoming connection  
@@ -153,13 +189,24 @@ void *socketHandler(void *_port) {
         FD_SET(master_socket, &readfds);   
         max_sd = master_socket;
 
+        // Add server sockets to set
+        for (int i = 0; i < MAX_CLIENT_SOCKET; i++) {
+            sd = server_socket[i];
+            if (sd > 0) {
+                FD_SET(sd, &readfds);
+            }
+            if (sd > max_sd) {
+                max_sd = sd;
+            }
+        }
+
         //add child sockets to set  
         for ( int i = 0 ; i < MAX_CLIENT_SOCKET; i++) {   
             //socket descriptor  
             sd = client_socket[i];   
                  
             //if valid socket descriptor then add to read list  
-            if(sd > 0)   
+            if(sd > 0)
                 FD_SET( sd , &readfds);   
                  
             //highest file descriptor number, need it for the select function  
@@ -167,8 +214,8 @@ void *socketHandler(void *_port) {
                 max_sd = sd;   
         }
  
-        activity = select( max_sd + 1 , &readfds , NULL , NULL , NULL);   
-       
+        activity = select( max_sd + 1 , &readfds , NULL , NULL , &timeout);
+
         if ((activity < 0) && (errno != EINTR)) {   
             printf("select error");   
         }
@@ -182,8 +229,28 @@ void *socketHandler(void *_port) {
 
             printf("New connection , socket fd is %d , ip is : %s , port : %d \n" , new_socket , inet_ntoa(address.sin_addr) , ntohs 
                   (address.sin_port));
-            //add new socket to array of sockets  
-            addNewSocketToArray(new_socket);
+            //add new socket to array of sockets
+            setNonBlocking(new_socket);
+            addClientSocketToArray(new_socket);
+        }
+
+        // Handle communication from connected servers
+        for (int i = 0; i < MAX_CLIENT_SOCKET; i++) {
+            sd = server_socket[i];
+
+            if (FD_ISSET(sd, &readfds)) {
+                if ((valread = read(sd, buffer, MAX_BUFFER_SIZE)) == 0) {
+                    // Server disconnected
+                    getpeername(sd , (struct sockaddr*)&address , (socklen_t*)&addrlen); 
+                    printf("Server %s:%d disconnected\n", inet_ntoa(address.sin_addr), ntohs(address.sin_port));
+                    close(sd);
+                    server_socket[i] = 0;
+                } else {
+                    // Print message from server
+                    buffer[valread] = '\0';
+                    printf("Message from App%d: %s\n", i, buffer);
+                }
+            }
         }
 
         for (int i = 0; i < MAX_CLIENT_SOCKET; i++) {
@@ -210,25 +277,28 @@ void terminateSocket(int connectionId) {
         close(master_socket);
         return;
     }
-    if (client_socket[connectionId] != 0) {
-        int sd = client_socket[connectionId];
-        close(sd);
-        client_socket[connectionId] = 0;
-        printf("terminate success fully connectionId = %d\n", connectionId);
-    } else {
-        printf("invalid connection Id\n");
-    }
+    close(connectionId);
+    
 }
 
 void sendMessage(int connectionId, char message[]) {
-    send(client_socket[connectionId], message, strlen(message), 0);
+    if (send(connectionId, message, strlen(message), 0) == -1) {
+        perror("send failed");
+    } else {
+        printf("Message sent to connection ID %d: %s\n", connectionId, message);
+    }
 }
 
 void listConnection() {
     printf("\nID\n");
     for (int i = 0; i < MAX_CLIENT_SOCKET; i++) {
         if(client_socket[i] != 0) {
-            printf("%d     App%d\n", i, i);
+            printf("%d     App%d\n", client_socket[i], client_socket[i]);
+        }
+    }
+    for (int i = 0; i < MAX_CLIENT_SOCKET; i++) {
+        if(server_socket[i] != 0) {
+            printf("%d     App%d\n", server_socket[i], server_socket[i]);
         }
     }
 }
